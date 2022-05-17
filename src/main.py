@@ -127,7 +127,7 @@ for epoch in range(num_epochs):
                 labels.append(sample_batched['label'][0])
                 score_val, score_val_global, score_val_local = evaluator.get_scores()
                 # use [1:] since class0 is not considered in deep_globe metric
-                if mode == 1: print('[%d/%d] global acc: %.3f' % ((i_batch + 1)*batch_size, len(dataloader_val)*batch_size, score_val_global["accuracy"]))
+                if mode == 1: print('[%d/%d] global acc: %.3f GT: %s' % ((i_batch + 1)*batch_size, len(dataloader_val)*batch_size, score_val_global["accuracy"], sample_batched['label']))
                 else: print('[%d/%d] agg acc: %.3f GT: %s' % ((i_batch + 1)*batch_size, len(dataloader_val)*batch_size, score_val["accuracy"], sample_batched['label']))
                 
             score_val, score_val_global, score_val_local = evaluator.get_scores()
@@ -172,7 +172,7 @@ for epoch in range(num_epochs):
             if evaluation:
                 fpr, tpr, _ = roc_curve(np.array(labels), np.array(prob_scores), pos_label=n_class-1)
                 prec, recall, _ = precision_recall_curve(np.array(labels), np.array(prob_scores), pos_label=n_class-1)
-                outfile = open(f"{task_name}_metrics.txt", 'w')
+                outfile = open(f"{task_name}_mode{mode}_metrics.txt", 'w')
                 outfile.write(str(list(fpr)) + '\n')
                 outfile.write(str(list(tpr)) + '\n')
                 outfile.write(str(list(prec)) + '\n')

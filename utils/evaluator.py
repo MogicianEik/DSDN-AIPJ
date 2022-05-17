@@ -176,9 +176,8 @@ class Evaluator(object):
         with torch.no_grad():
             images = sample['image']
             ids = sample['id']
-            if not self.test:
-                labels = sample['label'] # PIL images
-                labels_glb = masks_transform(labels)
+            labels = sample['label'] # PIL images
+            labels_glb = masks_transform(labels)
 
             width, height = images[0].size
 
@@ -218,13 +217,16 @@ class Evaluator(object):
                         outputs_global = [ None for i in range(len(images)) ]
                     if self.mode == 1:
                         # eval with only resized global image ##########################
-                        model.module.fpn_global.smooth.register_forward_hook(hook_feature)
-                        print(features_blobs)
-                        exit()
-                        if flip:
-                            outputs_global += np.flip(np.rot90(model.forward(images_glb, None, None, None)[0].data.cpu().numpy(), k=angle, axes=(3, 2)), axis=3)
-                        else:
-                            outputs_global, _ = model.forward(images_glb, None, None, None)
+                        params = list(model._modules['module'].fpn_global.fc.parameters())
+                        weight_softmax = np.squeeze(params[0].cpu().numpy())
+                        outputs_global, _ = model.forward(images_glb, None, None, None)
+                        _ = _.cpu().data.numpy()
+                        for index, output in enumerate(outputs_global):
+                            probs = F.softmax(output).cpu().squeeze()
+                            # get the class indices of top k probabilities
+                            class_idx = topk(probs, len(probs))[1].int()
+                            CAMs = return_CAM(_[[index],:], weight_softmax, class_idx)
+                            CAM_on_image(images_global[index], CAMs, self.size_g[0], self.size_g[1], class_idx, self.mode, ids[index])
                         ################################################################
 
                     if self.mode == 2:
@@ -315,18 +317,15 @@ class Evaluator(object):
 
             _, predictions_global = torch.max(outputs_global.data, 1)
 
-            if not self.test:
-                self.metrics_global.update(labels_glb, predictions_global)
+            self.metrics_global.update(labels_glb, predictions_global)
 
             if self.mode == 2 or self.mode == 3:
                 # patch predictions ###########################
                 predictions_local = predicted_patches.argmax(1)
-                if not self.test:
-                    self.metrics_local.update(labels_glb, predictions_local)
+                self.metrics_local.update(labels_glb, predictions_local)
                 ###################################################
                 predictions = predicted_ensembles.argmax(1)
-                if not self.test:
-                    self.metrics.update(labels_glb, predictions)
+                self.metrics.update(labels_glb, predictions)
                 return predictions, predictions_global, predictions_local, outputs_global.data.cpu().numpy()
             else:
-                return None, predictions_global, None, None
+                return None, predictions_global, None, outputs_global.data.cpu().numpy()
